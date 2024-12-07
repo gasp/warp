@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx tsx src/interpolations.test.ts"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.17",
     "vue": "^3.4.37"
   },
   "devDependencies": {
