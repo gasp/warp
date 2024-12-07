@@ -14,15 +14,22 @@ function treshold(ev: any) {
   ev.target.value
 }
 
+function padSpace(n: number) {
+  const s = String(n)
+  const l = s.length
+  return ' '.repeat(7 - l) + s
+}
 
 function start() {
+  let frameI = 0
   const audioContext = new AudioContext()
   const canvasContext = canvas.value!.getContext('2d')!
   const source = audioContext.createBufferSource()
   // TODO: we may add some gain here
   const analyserNode = audioContext.createAnalyser()
 
-  // source.connect(audioContext.destination)
+  // mute the audio
+  source.connect(audioContext.destination)
   source.connect(analyserNode)
   fetch('public/warp-cut-whoopwhoop.ogg')
     .then(response => response.arrayBuffer())
@@ -56,12 +63,16 @@ function start() {
       y: 320
     }
 
+    // configure context
+    canvasContext.font = "10px monospace"
+
     function draw() {
 
 
       analyserNode.getByteTimeDomainData(dataArray)
       canvasContext.clearRect(0, 0, WIDTH, HEIGHT)
 
+      // initial (triangle) shape reference
       canvasContext.strokeStyle = '#0f0'
       canvasContext.beginPath()
       canvasContext.arc(A.x, A.y, 5, 0, TAU)
@@ -73,9 +84,6 @@ function start() {
       canvasContext.lineTo(A.x, A.y)
       canvasContext.stroke()
 
-
-
-      /*
       // horizontal line
       canvasContext.strokeStyle = '#00f'
       canvasContext.beginPath()
@@ -92,143 +100,78 @@ function start() {
       }
       canvasContext.lineTo(WIDTH, HEIGHT / 2)
       canvasContext.stroke()
-      */
 
-      canvasContext.beginPath()
-      canvasContext.moveTo(A.x, A.y)
-      canvasContext.strokeStyle = '#f00'
-
-      canvasContext.font = 'Monaco, fixedsys 10px'
-      canvasContext.fillText(`bufferLength: ${bufferLength}`, 10, 10)
-
-
-
-      const segments = [[A, B], [B, C], [C, A]]
-      const segmentsLengths = segments.map(segment => getDistance(segment[0], segment[1]))
-      // TODO: refactor to optmize length calculations
-      let segmentsMarkers = [0]
-      let cumulatedLength = 0
-
-
-      for (let index = 1; index < segmentsLengths.length; index++) {
-        cumulatedLength += segmentsLengths[index]
-        segmentsMarkers.push(cumulatedLength)
-      }
-      console.log(segmentsLengths, segmentsMarkers, cumulatedLength)
+      const segmentsPoints = [[A, B], [B, C], [C, A]]
+      const segmentsLengths = segmentsPoints.map(segment => getDistance(segment[0], segment[1]))
       const totalLength = segmentsLengths.reduce((acc, curr) => acc + curr, 0)
 
-      // TODO: pre-calculate angles and distances here
-
       const pointRatio = totalLength / bufferLength
-
       canvasContext.fillText(`AB: ${segmentsLengths[0]}`, 10, 20)
       canvasContext.fillText(`BC: ${segmentsLengths[1]}`, 10, 30)
       canvasContext.fillText(`CA: ${segmentsLengths[2]}`, 10, 40)
       canvasContext.fillText(`totalLength: ${totalLength}`, 10, 50)
       canvasContext.fillText(`pointRatio: ${pointRatio}`, 10, 60)
       canvasContext.fillText(`calculated length: ${bufferLength * pointRatio}`, 10, 70)
-
-      const vectors: Vector[] = [
-        {
-          // AB
-          point: A,
-          angle: Math.atan2(B.y - A.y, B.x - A.x),
-          distance: segmentsLengths[0]
-        },
-        {
-          // BC
-          point: B,
-          angle: Math.atan2(C.y - B.y, C.x - B.x),
-          distance: segmentsLengths[1]
-        },
-        {
-          // CA
-          point: C,
-          angle: Math.atan2(A.y - C.y, A.x - C.x),
-          distance: segmentsLengths[2]
-        },
-      ]
       canvasContext.fillText('A', A.x - 10, A.y - 10)
       canvasContext.fillText('B', B.x - 10, B.y - 10)
       canvasContext.fillText('C', C.x - 20, C.y + 10)
 
+      const segments = [
+        {
+          // AB
+          start: A,
+          angle: Math.atan2(B.y - A.y, B.x - A.x),
+          length: segmentsLengths[0]
+        },
+        {
+          // BC
+          start: B,
+          angle: Math.atan2(C.y - B.y, C.x - B.x),
+          length: segmentsLengths[1]
+        },
+        {
+          // CA
+          start: C,
+          angle: Math.atan2(A.y - C.y, A.x - C.x),
+          length: segmentsLengths[2]
+        }
+      ]
 
-      let vectori = 0
-      let cumulated = 0
-      let next = vectors[0].distance / pointRatio
+      canvasContext.beginPath()
 
-      // for (let i = 0; i < bufferLength; i++) {
-      for (let i = 0; i < 200; i++) {
+      /** segment i */
+      let si = 0
+      /** previous cumulated distance */
+      let pd = 0
+      for (let i = 0; i < bufferLength; i++) { // 256
 
+        if (i * pointRatio > pd + segments[si].length) {
+          if (si < segments.length - 1) si++
+          pd = pd + segments[si].length
+          // console.log( i, si, i * pointRatio)
+        }
         // variation
         const v = dataArray[i] / 128.0 * WAVE_FACTOR - WAVE_FACTOR
 
-        while (i * pointRatio > next) {
-          cumulated += vectors[vectori].distance
-          vectori++
-          next += vectors[vectori].distance
-
-          // fix out of bounds caused by approximations
-          if (vectori > vectors.length - 1) {
-            vectori = vectors.length - 1
-            next = Infinity
-          }
-        }
-
-        const vector = vectors[vectori]
-        const relativeDistance = i * pointRatio - cumulated
-
         // points between A & B
         const refPoint = {
-          x: vector.point.x + Math.cos(vector.angle) * relativeDistance,
-          y: vector.point.y + Math.sin(vector.angle) * relativeDistance
+          x: segments[si].start.x + Math.cos(segments[si].angle) * (pointRatio * i - pd),
+          y: segments[si].start.y + Math.sin(segments[si].angle) * (pointRatio * i - pd)
         }
-
-        if (i === 51) {
-          canvasContext.arc(refPoint.x, refPoint.y, 2, 0, TAU)
-
-          // canvasContext.fillText(`c${cumulated.toFixed(2)} / n${next.toFixed(2)}/ ir${(i * pointRatio).toFixed(2)} / r${relativeDistance.toFixed(2)}`, refPoint.x + 10, refPoint.y)
-          canvasContext.fillText(`vi${vectori} / i${i} / c${cumulated.toFixed(2)} / n${next.toFixed(2)}/ ir${(i * pointRatio).toFixed(2)} / r${relativeDistance.toFixed(2)}`, refPoint.x + 10, refPoint.y)
-
-          // canvasContext.fillText(`${vector.point.x} / ${relativeDistance.toFixed(2)}`, refPoint.x + 10, refPoint.y)
-        }
-
         // 90° Angle away from starting point
         const wavePoint = {
-          x: refPoint.x + Math.cos(vector.angle + Math.PI / 2) * v,
-          y: refPoint.y + Math.sin(vector.angle + Math.PI / 2) * v
+          x: refPoint.x + Math.cos(segments[si].angle + Math.PI / 2) * v,
+          y: refPoint.y + Math.sin(segments[si].angle + Math.PI / 2) * v
         }
         canvasContext.lineTo(wavePoint.x, wavePoint.y)
-
       }
-      canvasContext.fillStyle = '#000'
-      canvasContext.stroke()
-      /*
-            for (let i = 0; i < bufferLength; i++) {
-              const v = dataArray[i] / 128.0 * WAVE_FACTOR - WAVE_FACTOR
-      
-              const distance = getDistance(A, B)
-              const prime = distance * i / bufferLength
-      
-              // points between A & B
-              const refPoint = {
-                x: A.x + Math.cos(angle) * prime,
-                y: A.y + Math.sin(angle) * prime
-              }
-      
-              // 90° Angle away from starting point
-              const wavePoint = {
-                x: refPoint.x + Math.cos(angle + Math.PI / 2) * v,
-                y: refPoint.y + Math.sin(angle + Math.PI / 2) * v
-              }
-              canvasContext.lineTo(wavePoint.x, wavePoint.y)
-              c += sliceWidth;
-            }
-            canvasContext.lineTo(B.x, B.y)
-            */
       canvasContext.stroke()
 
-      // requestAnimationFrame(draw)
+
+
+      canvasContext.fillText(padSpace(frameI), 450, 10)
+      frameI++
+      requestAnimationFrame(draw)
     }
 
     draw()
