@@ -55,14 +55,6 @@ export function getDistance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y)
 }
 
-export function getPolyDistance(segments: Segment[]) {
-  let distance = 0
-  for (let segment of segments) {
-    distance += getDistance(segment[0], segment[1])
-  }
-  return distance
-}
-
 export function getAngle(a: Point, b: Point): number {
   return Math.atan2(b.y - a.y, b.x - a.x)
 }
@@ -76,13 +68,13 @@ export function moveTowards(a: Point, b: Point, distance: number): Point {
 }
 
 export function moveInDirection(
-  a: Point,
+  center: Point,
   angle: number,
   distance: number
 ): Point {
   return {
-    x: a.x + Math.cos(angle) * distance,
-    y: a.y + Math.sin(angle) * distance
+    x: center.x + Math.cos(angle) * distance,
+    y: center.y + Math.sin(angle) * distance
   }
 }
 

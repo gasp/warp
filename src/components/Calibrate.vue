@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { getDistance, Vector } from '../geometry'
-import { whichSegment } from '../interpolations'
+import { getDistance, getAngle } from '../geometry'
 
 const WIDTH = 500
 const HEIGHT = 500
@@ -67,8 +66,6 @@ function start() {
     canvasContext.font = "10px monospace"
 
     function draw() {
-
-
       analyserNode.getByteTimeDomainData(dataArray)
       canvasContext.clearRect(0, 0, WIDTH, HEIGHT)
 
@@ -101,14 +98,35 @@ function start() {
       canvasContext.lineTo(WIDTH, HEIGHT / 2)
       canvasContext.stroke()
 
-      const segmentsPoints = [[A, B], [B, C], [C, A]]
-      const segmentsLengths = segmentsPoints.map(segment => getDistance(segment[0], segment[1]))
-      const totalLength = segmentsLengths.reduce((acc, curr) => acc + curr, 0)
-
+      const segments = [
+        {
+          // AB
+          points: [A, B],
+          start: A,
+          angle: getAngle(A, B),
+          length: getDistance(A, B)
+        },
+        {
+          // BC
+          points: [B, C],
+          start: B,
+          angle: getAngle(B, C),
+          length: getDistance(B, C)
+        },
+        {
+          // CA
+          points: [C, A],
+          start: C,
+          angle: getAngle(C, A),
+          length: getDistance(C, A)
+        }
+      ]
+      const totalLength = segments.reduce((acc, { length }) => acc + length, 0)
       const pointRatio = totalLength / bufferLength
-      canvasContext.fillText(`AB: ${segmentsLengths[0]}`, 10, 20)
-      canvasContext.fillText(`BC: ${segmentsLengths[1]}`, 10, 30)
-      canvasContext.fillText(`CA: ${segmentsLengths[2]}`, 10, 40)
+
+      canvasContext.fillText(`AB: ${segments[0].length}`, 10, 20)
+      canvasContext.fillText(`BC: ${segments[1].length}`, 10, 30)
+      canvasContext.fillText(`CA: ${segments[2].length}`, 10, 40)
       canvasContext.fillText(`totalLength: ${totalLength}`, 10, 50)
       canvasContext.fillText(`pointRatio: ${pointRatio}`, 10, 60)
       canvasContext.fillText(`calculated length: ${bufferLength * pointRatio}`, 10, 70)
@@ -116,29 +134,7 @@ function start() {
       canvasContext.fillText('B', B.x - 10, B.y - 10)
       canvasContext.fillText('C', C.x - 20, C.y + 10)
 
-      const segments = [
-        {
-          // AB
-          start: A,
-          angle: Math.atan2(B.y - A.y, B.x - A.x),
-          length: segmentsLengths[0]
-        },
-        {
-          // BC
-          start: B,
-          angle: Math.atan2(C.y - B.y, C.x - B.x),
-          length: segmentsLengths[1]
-        },
-        {
-          // CA
-          start: C,
-          angle: Math.atan2(A.y - C.y, A.x - C.x),
-          length: segmentsLengths[2]
-        }
-      ]
-
       canvasContext.beginPath()
-
       /** segment i */
       let si = 0
       /** previous cumulated distance */
@@ -178,7 +174,6 @@ function start() {
   }
 }
 
-setTimeout(start, 1000)
 </script>
 <template>
   <canvas :width='WIDTH' :height='HEIGHT' ref="canvas"></canvas>

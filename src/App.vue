@@ -9,7 +9,7 @@ const debug = ref(false)
 
 <template>
   <Calibrate />
-  <!-- <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" /> -->
+  <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" />
   <Tracker />
   <input type="checkbox" v-model="debug">
 </template>
