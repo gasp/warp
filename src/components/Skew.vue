@@ -85,6 +85,7 @@ function endDrag() {
 
 function onKeydown(event: KeyboardEvent) {
   if (event.metaKey || event.ctrlKey || event.altKey) return
+  if (event.target instanceof HTMLInputElement) return
   // event.code, so 1-4 work without shift on AZERTY too
   const digit = /^(Digit|Numpad)([1-4])$/.exec(event.code)
   if (digit) {
@@ -107,7 +108,7 @@ function onKeydown(event: KeyboardEvent) {
 
 function createPane(container: HTMLElement): Pane {
   const p = new Pane({ container, title: 'Skew  (h to hide)' })
-  p.addBinding(projection, 'ratio', {
+  const ratio = p.addBinding(projection, 'ratio', {
     label: 'tape ratio',
     options: Object.fromEntries(RATIOS.map(r => [r.label, r.label]))
   })
@@ -116,6 +117,24 @@ function createPane(container: HTMLElement): Pane {
     options: { '1 top-left': 0, '2 top-right': 1, '3 bottom-right': 2, '4 bottom-left': 3 }
   })
   p.addButton({ title: 'reset corners' }).on('click', reset)
+
+  // Cross-multiplication: whichever side was measured gives the other one.
+  const sizeFolder = p.addFolder({ title: 'wall size (cm)' })
+  const size = { width: 160, height: 90 }
+  let syncing = false
+  const sync = (from: 'width' | 'height') => {
+    if (syncing) return
+    const { w, h } = RATIOS.find(r => r.label === projection.ratio)!
+    const round = (n: number) => Math.round(n * 10) / 10
+    if (from === 'width') size.height = round((size.width * h) / w)
+    else size.width = round((size.height * w) / h)
+    syncing = true
+    sizeFolder.refresh()
+    syncing = false
+  }
+  sizeFolder.addBinding(size, 'width', { min: 0, step: 0.1 }).on('change', () => sync('width'))
+  sizeFolder.addBinding(size, 'height', { min: 0, step: 0.1 }).on('change', () => sync('height'))
+  sync('width')
 
   const keys = p.addFolder({ title: 'shortcuts' })
   const shortcuts = {
@@ -129,7 +148,10 @@ function createPane(container: HTMLElement): Pane {
   }
 
   // A focused list would otherwise eat the arrow and digit shortcuts.
-  p.on('change', () => (document.activeElement as HTMLElement | null)?.blur())
+  p.on('change', ev => {
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    if (ev.target === ratio) sync('width')
+  })
   return p
 }
 
