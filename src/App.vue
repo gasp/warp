@@ -18,8 +18,8 @@ const tabFromHash = (): TabId =>
   TABS.find(t => location.hash === `#${t.id}`)?.id ?? TABS[0].id
 
 const tab = ref<TabId>(tabFromHash())
-// Tabs stay mounted once visited: Tracker has no teardown, and the webcam must
-// keep feeding the store from any tab.
+// Tabs stay mounted once visited: the webcam must keep feeding the store from
+// any tab.
 const visited = reactive(new Set<TabId>([tab.value]))
 const fullscreen = ref(document.fullscreenElement !== null)
 const debug = ref(false)

@@ -1,139 +1,185 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { store } from '../store.js'
 import {
-  PoseLandmarker,
+  DrawingUtils,
   FilesetResolver,
-  DrawingUtils
-} from "@mediapipe/tasks-vision";
+  PoseLandmarker,
+  type NormalizedLandmark
+} from '@mediapipe/tasks-vision'
+import { Pane, type ButtonApi } from 'tweakpane'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { store } from '../store.js'
+
+// Pinned on its own, independently of the npm package version.
+const WASM_URL =
+  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
+const MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+// Pose 0 is the one whose nose feeds the store.
+const POSE_COLORS = ['#ff4d8d', '#2ee6d6', '#ffd24d', '#9b8cff']
+
+const config = reactive({
+  skeletons: true,
+  poses: 2,
+  minVisibility: 0.9
+})
 
 const video = ref<HTMLVideoElement | null>(null)
-function reset() {
-  store.setCoords(200, 100)
-}
+const overlay = ref<HTMLCanvasElement | null>(null)
+const paneContainer = ref<HTMLElement | null>(null)
 
+let pane: Pane | null = null
+let startButton: ButtonApi | null = null
+let drawing: DrawingUtils | null = null
+let landmarker: PoseLandmarker | null = null
+let stream: MediaStream | null = null
+let frame = 0
+let lastVideoTime = -1
 
-let poseLandmarker: PoseLandmarker | undefined = undefined;
-let webcamRunning: Boolean = false;
-
-// Before we can use PoseLandmarker class we must wait for it to finish
-// loading. Machine Learning models can be large and take a moment to
-// get everything needed to run.
-const createPoseLandmarker = async () => {
-  const vision = await FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-  );
-  poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
-    baseOptions: {
-      modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-      delegate: "GPU"
-    },
+async function loadLandmarker() {
+  const vision = await FilesetResolver.forVisionTasks(WASM_URL)
+  const numPoses = config.poses
+  landmarker = await PoseLandmarker.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
     runningMode: 'VIDEO',
-    numPoses: 2
-  });
-  // enableWebcamButton.disabled = false;
-};
-createPoseLandmarker();
-
-
-// Check if webcam access is supported.
-const hasGetUserMedia = () => !!navigator.mediaDevices?.getUserMedia;
-
-// If webcam supported, add event listener to button for when user
-// wants to activate it.
-if (hasGetUserMedia()) {
-  // enableWebcamButton.addEventListener("click", enableCam);
-} else {
-  console.warn("getUserMedia() is not supported by your browser");
+    numPoses
+  })
+  // The slider may have moved while the model was downloading.
+  if (config.poses !== numPoses) landmarker.setOptions({ numPoses: config.poses })
+  setStartButton('start video', true)
 }
-// Enable the live webcam view and start detection.
-function allow() {
-  if (!poseLandmarker) {
-    console.log("Wait! poseLandmaker not loaded yet.");
-    return;
+
+function setStartButton(title: string, enabled: boolean) {
+  if (!startButton) return
+  startButton.title = title
+  startButton.disabled = !enabled
+}
+
+async function startVideo() {
+  if (!landmarker || stream) return
+  setStartButton('starting…', false)
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true })
+  } catch (error) {
+    console.warn('camera:', error)
+    setStartButton('start video', true)
+    return
   }
-
-  // getUsermedia parameters.
-  const constraints = {
-    video: true
-  };
-
-  // Activate the webcam stream.
-  navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
-    video.value!.srcObject = stream;
-    video.value!.addEventListener("loadeddata", predictWebcam);
-  });
+  setStartButton('video running', false)
+  video.value!.srcObject = stream
+  video.value!.addEventListener(
+    'loadeddata',
+    () => (frame = requestAnimationFrame(predict)),
+    { once: true }
+  )
 }
 
-let lastVideoTime = -1;
-async function predictWebcam() {
-  console.log('prediction started')
-  let startTimeMs = performance.now();
-  if (lastVideoTime !== video.value!.currentTime) {
-    lastVideoTime = video.value!.currentTime;
-    poseLandmarker!.detectForVideo(video.value!, startTimeMs, (result) => {
-      // console.log('detection started')
-      // console.log(result.landmarks[0][0])
-      if (!result.landmarks) {
-        return;
-      }
-      if (result.landmarks.length === 0) {
-        return;
-      }
-      const { x, y, visibility } = result.landmarks[0][0]
-      if (visibility > .9) {
-        store.setCoords(x, y)
+function predict() {
+  frame = requestAnimationFrame(predict)
+  const el = video.value!
+  if (el.currentTime === lastVideoTime) return
+  lastVideoTime = el.currentTime
+  // Landmarks are only valid inside the callback.
+  landmarker!.detectForVideo(el, performance.now(), result => {
+    const nose = result.landmarks[0]?.[0]
+    if (nose && nose.visibility > config.minVisibility) {
+      store.setCoords(nose.x, nose.y)
+    }
+    draw(result.landmarks)
+  })
+}
 
-      }
-      // for (const landmark of result.landmarks) {
-      //   console.log(landmark)
-      //   // drawingUtils.drawLandmarks(landmark, {
-      //   //   radius: (data) => DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1)
-      //   // });
-      //   // drawingUtils.drawConnectors(landmark, PoseLandmarker.POSE_CONNECTIONS);
-      // }
-      // 
-    });
+function draw(poses: NormalizedLandmark[][]) {
+  const canvas = overlay.value!
+  const { videoWidth, videoHeight } = video.value!
+  if (canvas.width !== videoWidth || canvas.height !== videoHeight) {
+    canvas.width = videoWidth
+    canvas.height = videoHeight
   }
-
-  // Call this function again to keep predicting when the browser is ready.
-  window.requestAnimationFrame(predictWebcam);
-
+  canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
+  if (!config.skeletons) return
+  poses.forEach((landmarks, i) => {
+    const color = POSE_COLORS[i % POSE_COLORS.length]
+    drawing!.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
+      color,
+      lineWidth: 3
+    })
+    drawing!.drawLandmarks(landmarks, { color, fillColor: color, radius: 3 })
+  })
 }
 
+function reset() {
+  store.setCoords(0.5, 0.125)
+}
+
+function createPane(container: HTMLElement): Pane {
+  const p = new Pane({ container, title: 'Camera' })
+  startButton = p.addButton({ title: 'loading model…', disabled: true })
+  startButton.on('click', startVideo)
+  p.addBinding(config, 'skeletons')
+  p.addBinding(config, 'poses', { min: 1, max: 4, step: 1 }).on(
+    'change',
+    ({ value }) => landmarker?.setOptions({ numPoses: value })
+  )
+  p.addBinding(config, 'minVisibility', {
+    label: 'nose visibility',
+    min: 0,
+    max: 1,
+    step: 0.05
+  })
+  p.addButton({ title: 'reset position' }).on('click', reset)
+  return p
+}
+
+onMounted(() => {
+  pane = createPane(paneContainer.value!)
+  drawing = new DrawingUtils(overlay.value!.getContext('2d')!)
+  loadLandmarker().catch(error => {
+    console.error('pose landmarker:', error)
+    setStartButton('model failed to load', false)
+  })
+})
+
+onUnmounted(() => {
+  cancelAnimationFrame(frame)
+  stream?.getTracks().forEach(track => track.stop())
+  landmarker?.close()
+  drawing?.close()
+  pane?.dispose()
+})
 </script>
 
 <template>
-  <video autoplay playsinline ref="video"></video>
-  <button type="button" @click="allow">start video</button>
-  <button type="button" @click="reset">reset</button>
+  <div class="stage">
+    <video ref="video" autoplay playsinline />
+    <canvas ref="overlay" class="overlay" />
+  </div>
+  <div ref="paneContainer" class="pane" />
 </template>
 
 <style scoped>
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
+.stage {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
 }
 
-button:hover {
-  border-color: #646cff;
+video {
+  display: block;
+  max-width: 100%;
 }
 
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 
-@media (prefers-color-scheme: light) {
-  button {
-    background-color: #f9f9f9;
-  }
+.pane {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 300px;
 }
 </style>
