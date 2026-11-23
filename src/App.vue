@@ -3,13 +3,13 @@ import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import Canvas from './components/Canvas.vue'
 import Tracker from './components/Tracker.vue'
 import Calibrate from './components/Calibrate.vue'
-import Skew from './components/Skew.vue'
+import Placements from './components/Placements.vue'
 import Tabs from './components/Tabs.vue'
 
 const TABS = [
   { id: 'music', label: 'Music lines' },
   { id: 'camera', label: 'Camera' },
-  { id: 'skew', label: 'Skew' },
+  { id: 'placements', label: 'Placements' },
   { id: 'final', label: 'Final' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -73,7 +73,7 @@ onUnmounted(() => {
   </section>
 
   <!-- Mounted only while shown: its arrow and digit shortcuts listen on window. -->
-  <Skew v-if="tab === 'skew'" />
+  <Placements v-if="tab === 'placements'" />
 
   <section v-if="visited.has('final')" v-show="tab === 'final'" class="panel">
     <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" />

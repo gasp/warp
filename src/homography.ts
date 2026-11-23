@@ -34,6 +34,24 @@ export function applyHomography(m: Homography, { x, y }: Point): Point {
   }
 }
 
+/** The map that applies `first`, then `second`. */
+export function composeHomographies(
+  first: Homography,
+  second: Homography
+): Homography {
+  const product: number[] = []
+  for (let row = 0; row < 3; row++) {
+    for (let col = 0; col < 3; col++) {
+      let sum = 0
+      for (let k = 0; k < 3; k++) {
+        sum += second[row * 3 + k] * first[k * 3 + col]
+      }
+      product.push(sum)
+    }
+  }
+  return product
+}
+
 /** CSS `transform` value for an element with `transform-origin: 0 0`. */
 export function toCssMatrix3d(m: Homography): string {
   const [a, b, c, d, e, f, g, h, i] = m
