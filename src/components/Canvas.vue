@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { store } from '../store.js'
-import { lerp } from '../interpolations'
-import { getIntersection, getPointInVector, getDistance } from '../geometry'
-import { drawLines } from '../lines'
+import { store } from '../lib/store.js'
+import { lerp } from '../lib/interpolations'
+import { getIntersection, getPointInVector, getDistance } from '../lib/geometry'
+import { drawLines } from '../lib/lines'
 
 type Props = {
   debug: boolean,

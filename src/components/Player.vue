@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { store } from '../store.js'
+import { store } from '../lib/store.js'
 
 let context: AudioContext | null = null
 let player: AudioBufferSourceNode | null = null

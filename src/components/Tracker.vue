@@ -6,8 +6,8 @@ import {
 } from '@mediapipe/tasks-vision'
 import { Pane } from 'tweakpane'
 import { onMounted, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
-import { addCameraButton, camera, poses, stream } from '../camera'
-import { store } from '../store.js'
+import { addCameraButton, camera, poses, stream } from '../lib/camera'
+import { store } from '../lib/store.js'
 
 // Pose 0 is the one whose nose feeds the store.
 const POSE_COLORS = ['#ff4d8d', '#2ee6d6', '#ffd24d', '#9b8cff']

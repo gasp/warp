@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { getHomography, rectQuad, toCssMatrix3d, type Quad } from '../homography'
-import { projection, useViewport } from '../projection'
+import { getHomography, rectQuad, toCssMatrix3d, type Quad } from '../lib/homography'
+import { projection, useViewport } from '../lib/projection'
 
 /**
  * Fills the viewport and warps the default slot, laid out at width × height

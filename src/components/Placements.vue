@@ -10,16 +10,16 @@ import {
   watch,
   watchEffect
 } from 'vue'
-import { addCameraButton, camera, poses, stream } from '../camera'
-import { cameraPlacement, tapeCorners } from '../cameraPlacement'
-import type { Point } from '../geometry'
+import { addCameraButton, camera, poses, stream } from '../lib/camera'
+import { cameraPlacement, tapeCorners } from '../lib/camera-placement'
+import type { Point } from '../lib/geometry'
 import {
   applyHomography,
   composeHomographies,
   isConvexQuad,
   toCssMatrix3d,
   type Quad
-} from '../homography'
+} from '../lib/homography'
 import {
   cameraToViewport,
   isProjectable,
@@ -27,8 +27,8 @@ import {
   scaleQuad,
   viewportToWall,
   wallToViewport
-} from '../mapping'
-import { RATIOS, fitCorners, projection, useViewport } from '../projection'
+} from '../lib/mapping'
+import { RATIOS, fitCorners, projection, useViewport } from '../lib/projection'
 import Projection from './Projection.vue'
 
 const PATTERN_HEIGHT = 900

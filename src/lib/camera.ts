@@ -4,8 +4,8 @@ import {
 } from '@mediapipe/tasks-vision'
 // The package's `exports` hides its wasm/ folder, hence the relative paths.
 // Loading the runtime from node_modules keeps it in step with the npm version.
-import wasmLoaderPath from '../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.js?url'
-import wasmBinaryPath from '../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.wasm?url'
+import wasmLoaderPath from '../../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.js?url'
+import wasmBinaryPath from '../../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.wasm?url'
 import type { FolderApi } from 'tweakpane'
 import { computed, reactive, shallowRef, watch, watchEffect } from 'vue'
 
@@ -29,7 +29,9 @@ export const camera = reactive({
   /** '' picks the browser's default camera. */
   deviceId: loadDeviceId(),
   devices: [] as CameraDevice[],
-  numPoses: 2
+  numPoses: 2,
+  /** Cap on pose detections per second; the camera's own frame rate still bounds it. */
+  fps: 60
 })
 
 export const stream = shallowRef<MediaStream | null>(null)
@@ -45,6 +47,7 @@ video.playsInline = true
 let landmarker: PoseLandmarker | null = null
 let frame = 0
 let lastVideoTime = -1
+let lastDetection = 0
 
 async function loadLandmarker() {
   if (camera.model === 'loading' || camera.model === 'ready') return
@@ -110,7 +113,7 @@ export async function startCamera() {
   refreshDevices()
 }
 
-function stopCamera() {
+export function stopCamera() {
   stream.value?.getTracks().forEach(track => track.stop())
   stream.value = null
   video.srcObject = null
@@ -118,10 +121,15 @@ function stopCamera() {
   camera.status = 'idle'
 }
 
-function detect() {
+function detect(now: number) {
   frame = requestAnimationFrame(detect)
   if (!landmarker || video.readyState < video.HAVE_CURRENT_DATA) return
   if (video.currentTime === lastVideoTime) return
+  // rAF timestamps jitter around the display rate: without the 1 ms slack a
+  // 30 fps cap on a 60 Hz display would often wait a third frame.
+  const interval = 1000 / camera.fps
+  if (now - lastDetection < interval - 1) return
+  lastDetection = now
   lastVideoTime = video.currentTime
   poses.value = landmarker.detectForVideo(video, performance.now()).landmarks
 }
@@ -167,19 +175,21 @@ const buttonTitle = computed(() => {
     case 'failed':
       return 'camera failed, retry'
     case 'running':
-      if (camera.model === 'loading') return 'camera on, loading model…'
-      if (camera.model === 'failed') return 'camera on, model failed'
-      return 'camera on'
+      if (camera.model === 'loading') return 'stop camera (loading model…)'
+      if (camera.model === 'failed') return 'stop camera (model failed)'
+      return 'stop camera'
   }
 })
 
 /** Call from inside a component: its unmount stops the button's watcher. */
 export function addCameraButton(folder: FolderApi) {
   const button = folder.addButton({ title: buttonTitle.value })
-  button.on('click', startCamera)
+  button.on('click', () => {
+    if (camera.status === 'running') stopCamera()
+    else startCamera()
+  })
   watchEffect(() => {
     button.title = buttonTitle.value
-    button.disabled =
-      camera.status === 'starting' || camera.status === 'running'
+    button.disabled = camera.status === 'starting'
   })
 }

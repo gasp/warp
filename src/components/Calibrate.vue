@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Pane, type ButtonApi } from 'tweakpane'
 import { onMounted, onUnmounted, ref } from 'vue'
-import { getDistance, getAngle } from '../geometry'
+import { getDistance, getAngle } from '../lib/geometry'
 
 const WIDTH = 500
 const HEIGHT = 500
