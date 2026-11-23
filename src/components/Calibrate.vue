@@ -1,16 +1,54 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { Pane, type ButtonApi } from 'tweakpane'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { getDistance, getAngle } from '../geometry'
 
 const WIDTH = 500
 const HEIGHT = 500
-const WAVE_FACTOR = 16
 const TAU = Math.PI * 2
 
-const canvas = ref<HTMLCanvasElement | null>(null)
+const config = {
+  waveFactor: 16
+}
 
-function treshold(ev: any) {
-  ev.target.value
+const canvas = ref<HTMLCanvasElement | null>(null)
+const paneContainer = ref<HTMLElement | null>(null)
+
+let pane: Pane | null = null
+let playButton: ButtonApi | null = null
+let audioContext: AudioContext | null = null
+type PlayState = 'idle' | 'playing' | 'paused' | 'ended'
+let playState: PlayState = 'idle'
+let frame = 0
+let drawLoop: (() => void) | null = null
+
+function setPlayState(state: PlayState) {
+  playState = state
+  if (playButton) playButton.title = state === 'playing' ? 'pause' : 'play'
+}
+
+function togglePlay() {
+  switch (playState) {
+    case 'idle':
+    case 'ended':
+      start()
+      break
+    case 'playing':
+      cancelAnimationFrame(frame)
+      audioContext!.suspend()
+      setPlayState('paused')
+      break
+    case 'paused': {
+      const ctx = audioContext!
+      ctx.resume().then(() => {
+        // a restart or a second click can land while resume() is pending
+        if (audioContext !== ctx || playState !== 'paused') return
+        setPlayState('playing')
+        drawLoop?.()
+      })
+      break
+    }
+  }
 }
 
 function padSpace(n: number) {
@@ -21,21 +59,31 @@ function padSpace(n: number) {
 
 function start() {
   let frameI = 0
-  const audioContext = new AudioContext()
+  cancelAnimationFrame(frame)
+  drawLoop = null
+  audioContext?.close()
+  const ctx = new AudioContext()
+  audioContext = ctx
+  setPlayState('playing')
   const canvasContext = canvas.value!.getContext('2d')!
-  const source = audioContext.createBufferSource()
+  const source = ctx.createBufferSource()
   // TODO: we may add some gain here
-  const analyserNode = audioContext.createAnalyser()
+  const analyserNode = ctx.createAnalyser()
 
   // mute the audio
-  source.connect(audioContext.destination)
+  source.connect(ctx.destination)
   source.connect(analyserNode)
   fetch('public/warp-cut-whoopwhoop.ogg')
     .then(response => response.arrayBuffer())
-    .then(binAudio => audioContext.decodeAudioData(binAudio))
+    .then(binAudio => ctx.decodeAudioData(binAudio))
     .then(buffer => {
       source.buffer = buffer
       source.loop = false
+      source.onended = () => {
+        if (audioContext !== ctx) return
+        cancelAnimationFrame(frame)
+        setPlayState('ended')
+      }
       source.start()
       analyzer()
     })
@@ -147,7 +195,7 @@ function start() {
           // console.log( i, si, i * pointRatio)
         }
         // variation
-        const v = dataArray[i] / 128.0 * WAVE_FACTOR - WAVE_FACTOR
+        const v = (dataArray[i] / 128.0 - 1) * config.waveFactor
 
         // points between A & B
         const refPoint = {
@@ -163,22 +211,51 @@ function start() {
       }
       canvasContext.stroke()
 
-
-
       canvasContext.fillText(padSpace(frameI), 450, 10)
       frameI++
-      requestAnimationFrame(draw)
+      frame = requestAnimationFrame(draw)
     }
 
-    draw()
+    drawLoop = draw
+    // a pause can land while the sample is loading; resuming starts the loop
+    if (playState === 'playing') draw()
   }
 }
 
+function createPane(container: HTMLElement): Pane {
+  const p = new Pane({ container, title: 'Music' })
+  playButton = p.addButton({ title: 'play' })
+  playButton.on('click', togglePlay)
+  p.addBinding(config, 'waveFactor', {
+    label: 'wave amplitude',
+    min: 0,
+    max: 100,
+    step: 1
+  }).on('change', () => {
+    // the draw loop is stopped while paused: redraw one frame to show the change
+    if (playState === 'playing' || !drawLoop) return
+    drawLoop()
+    cancelAnimationFrame(frame)
+  })
+  return p
+}
+
+onMounted(() => {
+  pane = createPane(paneContainer.value!)
+})
+
+onUnmounted(() => {
+  cancelAnimationFrame(frame)
+  audioContext?.close()
+  audioContext = null
+  pane?.dispose()
+  pane = null
+  playButton = null
+})
 </script>
 <template>
   <canvas :width='WIDTH' :height='HEIGHT' ref="canvas"></canvas>
-  <button @click="start">calibrate</button>
-  <input type="range" @onchange="treshold" />
+  <div ref="paneContainer" class="pane" />
 </template>
 
 <style scoped>
@@ -186,7 +263,10 @@ canvas {
   background-color: #888;
 }
 
-input[type=range] {
-  transform: rotate(-90deg);
+.pane {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 300px;
 }
 </style>
