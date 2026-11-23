@@ -4,6 +4,7 @@ import Canvas from './components/Canvas.vue'
 import Tracker from './components/Tracker.vue'
 import Calibrate from './components/Calibrate.vue'
 import Skew from './components/Skew.vue'
+import Tabs from './components/Tabs.vue'
 
 const TABS = [
   { id: 'music', label: 'Music lines' },
@@ -59,17 +60,9 @@ onUnmounted(() => {
 
 <template>
   <!-- Hidden in fullscreen, which is how the projector output is shown. -->
-  <nav v-if="!fullscreen" class="tabs">
-    <a
-      v-for="t in TABS"
-      :key="t.id"
-      :href="`#${t.id}`"
-      :class="{ active: t.id === tab }"
-    >
-      {{ t.label }}
-    </a>
+  <Tabs v-if="!fullscreen" :tabs="TABS" :active="tab">
     <button type="button" @click="toggleFullscreen">fullscreen (f)</button>
-  </nav>
+  </Tabs>
 
   <section v-if="visited.has('music')" v-show="tab === 'music'" class="panel">
     <Calibrate />
@@ -89,41 +82,6 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.tabs {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  z-index: 100;
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 8px;
-  background: rgba(20, 20, 20, 0.85);
-  transform: translateX(-50%);
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.tabs a,
-.tabs button {
-  padding: 4px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  color: #ccc;
-  font: inherit;
-  cursor: pointer;
-}
-
-.tabs a.active {
-  background: #3a3a3a;
-  color: #fff;
-}
-
-.tabs button {
-  color: #888;
-}
-
 .panel {
   padding-top: 48px;
 }
