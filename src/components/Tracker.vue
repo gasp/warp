@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import {
   DrawingUtils,
-  FilesetResolver,
   PoseLandmarker,
   type NormalizedLandmark
 } from '@mediapipe/tasks-vision'
+// The package's `exports` hides its wasm/ folder, hence the relative paths.
+// Loading the runtime from node_modules keeps it in step with the npm version.
+import wasmLoaderPath from '../../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.js?url'
+import wasmBinaryPath from '../../node_modules/@mediapipe/tasks-vision/wasm/vision_wasm_internal.wasm?url'
 import { Pane, type ButtonApi } from 'tweakpane'
 import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { store } from '../store.js'
 
-// Pinned on its own, independently of the npm package version.
-const WASM_URL =
-  'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm'
-const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'
+// Downloaded on postinstall by scripts/fetch-models.mjs.
+const MODEL_URL = `${import.meta.env.BASE_URL}models/pose_landmarker_lite.task`
 // Pose 0 is the one whose nose feeds the store.
 const POSE_COLORS = ['#ff4d8d', '#2ee6d6', '#ffd24d', '#9b8cff']
 
@@ -36,9 +36,11 @@ let frame = 0
 let lastVideoTime = -1
 
 async function loadLandmarker() {
-  const vision = await FilesetResolver.forVisionTasks(WASM_URL)
   const numPoses = config.poses
-  landmarker = await PoseLandmarker.createFromOptions(vision, {
+  // SIMD build only: FilesetResolver would fall back to the no-SIMD one, but
+  // every current browser has WebAssembly SIMD.
+  const wasm = { wasmLoaderPath, wasmBinaryPath }
+  landmarker = await PoseLandmarker.createFromOptions(wasm, {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' },
     runningMode: 'VIDEO',
     numPoses
