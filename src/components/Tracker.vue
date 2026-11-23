@@ -14,7 +14,9 @@ const POSE_COLORS = ['#ff4d8d', '#2ee6d6', '#ffd24d', '#9b8cff']
 
 const config = reactive({
   skeletons: true,
-  minVisibility: 0.9
+  minVisibility: 0.9,
+  cameraOpacity: 1,
+  skeletonOpacity: 1
 })
 
 const video = ref<HTMLVideoElement | null>(null)
@@ -66,7 +68,20 @@ function reset() {
 function createPane(container: HTMLElement): Pane {
   const p = new Pane({ container, title: 'Camera' })
   addCameraButton(p)
+  p.addBinding(config, 'cameraOpacity', {
+    label: 'camera opacity',
+    min: 0,
+    max: 1,
+    step: 0.05
+  })
   p.addBinding(config, 'skeletons')
+  p.addBinding(config, 'skeletonOpacity', {
+    label: 'skeleton opacity',
+    min: 0,
+    max: 1,
+    step: 0.05
+  })
+  p.addBinding(camera, 'fps', { label: 'detection fps', min: 1, max: 60, step: 1 })
   p.addBinding(camera, 'numPoses', { label: 'poses', min: 1, max: 4, step: 1 })
   p.addBinding(config, 'minVisibility', {
     label: 'nose visibility',
@@ -92,8 +107,17 @@ onUnmounted(() => {
 
 <template>
   <div class="stage">
-    <video ref="video" autoplay playsinline />
-    <canvas ref="overlay" class="overlay" />
+    <video
+      ref="video"
+      autoplay
+      playsinline
+      :style="{ opacity: config.cameraOpacity }"
+    />
+    <canvas
+      ref="overlay"
+      class="overlay"
+      :style="{ opacity: config.skeletonOpacity }"
+    />
   </div>
   <div ref="paneContainer" class="pane" />
 </template>
