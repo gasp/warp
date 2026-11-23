@@ -233,6 +233,11 @@
   resolved "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.24.0.tgz#0574d7e87b44ee8511d08cc7f914bcb802b70818"
   integrity sha512-fbMkAF7fufku0N2dE5TBXcNlg0pt0cJue4xBRE2Qc5Vqikxr4VCgKj/ht6SMdFcOacVA9rqF70APJ8RN/4vMJw==
 
+"@tweakpane/core@^2.0.5":
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/@tweakpane/core/-/core-2.0.5.tgz#bae776cd530b31f5e5424641411d4b20c3baed8e"
+  integrity sha512-punBgD5rKCF5vcNo6BsSOXiDR/NSs9VM7SG65QSLJIxfRaGgj54ree9zQW6bO3pNFf3AogiGgaNODUVQRk9YqQ==
+
 "@types/estree@1.0.6":
   version "1.0.6"
   resolved "https://registry.npmjs.org/@types/estree/-/estree-1.0.6.tgz#628effeeae2064a1b4e79f78e81d87b7e5fc7b50"
@@ -524,6 +529,11 @@ to-fast-properties@^2.0.0:
   version "2.0.0"
   resolved "https://registry.npmjs.org/to-fast-properties/-/to-fast-properties-2.0.0.tgz#dc5e698cbd079265bc73e0377681a4e4e83f616e"
   integrity sha512-/OaKK0xYrs3DmxRYqL/yDc+FxFUVYhDlXMhRmv3z915w2HF1tnN1omB354j8VUGO/hbRzyD6Y3sA7v7GS/ceog==
+
+tweakpane@^4.0.5:
+  version "4.0.5"
+  resolved "https://registry.yarnpkg.com/tweakpane/-/tweakpane-4.0.5.tgz#696572c4294c48a11cc0a3c487ea89ad1491e09a"
+  integrity sha512-rxEXdSI+ArlG1RyO6FghC4ZUX8JkEfz8F3v1JuteXSV0pEtHJzyo07fcDG+NsJfN5L39kSbCYbB9cBGHyuI/tQ==
 
 typescript@^5.5.3:
   version "5.6.2"

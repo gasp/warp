@@ -1,20 +1,133 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import Canvas from './components/Canvas.vue'
-import Tracker from './components/Tracker.vue';
-import Calibrate from './components/Calibrate.vue';
+import Tracker from './components/Tracker.vue'
+import Calibrate from './components/Calibrate.vue'
+import Skew from './components/Skew.vue'
 
+const TABS = [
+  { id: 'music', label: 'Music lines' },
+  { id: 'camera', label: 'Camera' },
+  { id: 'skew', label: 'Skew' },
+  { id: 'final', label: 'Final' }
+] as const
+type TabId = (typeof TABS)[number]['id']
+
+const tabFromHash = (): TabId =>
+  TABS.find(t => location.hash === `#${t.id}`)?.id ?? TABS[0].id
+
+const tab = ref<TabId>(tabFromHash())
+// Tabs stay mounted once visited: Tracker has no teardown, and the webcam must
+// keep feeding the store from any tab.
+const visited = reactive(new Set<TabId>([tab.value]))
+const fullscreen = ref(document.fullscreenElement !== null)
 const debug = ref(false)
+
+function onHashChange() {
+  tab.value = tabFromHash()
+  visited.add(tab.value)
+}
+
+function onFullscreenChange() {
+  fullscreen.value = document.fullscreenElement !== null
+}
+
+function toggleFullscreen() {
+  const request = document.fullscreenElement
+    ? document.exitFullscreen()
+    : document.documentElement.requestFullscreen()
+  request.catch(error => console.warn('fullscreen:', error))
+}
+
+function onKeydown(event: KeyboardEvent) {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
+  if (event.key.toLowerCase() === 'f') toggleFullscreen()
+}
+
+onMounted(() => {
+  window.addEventListener('hashchange', onHashChange)
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('fullscreenchange', onFullscreenChange)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('hashchange', onHashChange)
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
+})
 </script>
 
 <template>
-  <Calibrate />
-  <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" />
-  <Tracker />
-  <input type="checkbox" v-model="debug">
+  <!-- Hidden in fullscreen, which is how the projector output is shown. -->
+  <nav v-if="!fullscreen" class="tabs">
+    <a
+      v-for="t in TABS"
+      :key="t.id"
+      :href="`#${t.id}`"
+      :class="{ active: t.id === tab }"
+    >
+      {{ t.label }}
+    </a>
+    <button type="button" @click="toggleFullscreen">fullscreen (f)</button>
+  </nav>
+
+  <section v-if="visited.has('music')" v-show="tab === 'music'" class="panel">
+    <Calibrate />
+  </section>
+
+  <section v-if="visited.has('camera')" v-show="tab === 'camera'" class="panel">
+    <Tracker />
+  </section>
+
+  <!-- Mounted only while shown: its arrow and digit shortcuts listen on window. -->
+  <Skew v-if="tab === 'skew'" />
+
+  <section v-if="visited.has('final')" v-show="tab === 'final'" class="panel">
+    <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" />
+    <label><input type="checkbox" v-model="debug" /> debug</label>
+  </section>
 </template>
 
 <style scoped>
+.tabs {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.85);
+  transform: translateX(-50%);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.tabs a,
+.tabs button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #ccc;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tabs a.active {
+  background: #3a3a3a;
+  color: #fff;
+}
+
+.tabs button {
+  color: #888;
+}
+
+.panel {
+  padding-top: 48px;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

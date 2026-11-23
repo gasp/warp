@@ -21,3 +21,18 @@ export const remap = (
   rMin: number,
   rMax: number
 ) => lerp(rMin, rMax, inLerp(oMin, oMax, v))
+
+/**
+ *
+ * @param refferentialLength
+ * @param distances
+ * @returns an array of segments within the referencial scale
+ */
+export const whichSegment = (
+  refferentialLength: number,
+  distances: number[]
+): number[] => {
+  const totalLength = distances.reduce((acc, curr) => acc + curr, 0)
+  const ratio = refferentialLength / totalLength
+  return distances.map(d => d * ratio)
+}
