@@ -5,25 +5,28 @@ import Tracker from './components/Tracker.vue'
 import Music from './components/Music.vue'
 import Placements from './components/Placements.vue'
 import Experience from './components/Experience.vue'
-import Tabs from './components/Tabs.vue'
+import Menu from './components/Menu.vue'
 
-const TABS = [
+const EXPERIENCE = { id: 'experience', label: 'Experience' } as const
+const SETTINGS = [
   { id: 'music', label: 'Music' },
   { id: 'tracker', label: 'Camera' },
   { id: 'placements', label: 'Placements' },
-  { id: 'arp', label: 'Arp' },
-  { id: 'experience', label: 'Experience' },
+  { id: 'arp', label: 'Arp' }
 ] as const
-type TabId = (typeof TABS)[number]['id']
 
-const tabFromHash = (): TabId =>
-  TABS.find(t => location.hash === `#${t.id}`)?.id ?? TABS[0].id
+const MENU = [EXPERIENCE, { label: 'Settings', items: SETTINGS }] as const
+const VIEWS = [EXPERIENCE, ...SETTINGS] as const
+type ViewId = (typeof VIEWS)[number]['id']
 
-const tab = ref<TabId>(tabFromHash())
+const viewFromHash = (): ViewId =>
+  VIEWS.find(v => location.hash === `#${v.id}`)?.id ?? EXPERIENCE.id
+
+const view = ref<ViewId>(viewFromHash())
 const fullscreen = ref(document.fullscreenElement !== null)
 
 function onHashChange() {
-  tab.value = tabFromHash()
+  view.value = viewFromHash()
 }
 
 function onFullscreenChange() {
@@ -57,25 +60,25 @@ onUnmounted(() => {
 
 <template>
   <!-- Hidden in fullscreen, which is how the projector output is shown. -->
-  <Tabs v-if="!fullscreen" :tabs="TABS" :active="tab">
+  <Menu v-if="!fullscreen" :items="MENU" :active="view">
     <button type="button" @click="toggleFullscreen">fullscreen (f)</button>
-  </Tabs>
+  </Menu>
 
-  <!-- Only the shown tab is mounted. Leaving a tab unmounts it, which releases
-       its camera, model, audio and draw loop: no tab sees another's data. -->
-  <section v-if="tab === 'music'" class="panel">
+  <!-- Only the shown view is mounted. Leaving a view unmounts it, which releases
+       its camera, model, audio and draw loop: no view sees another's data. -->
+  <Experience v-if="view === 'experience'" />
+
+  <section v-if="view === 'music'" class="panel">
     <Music />
   </section>
 
-  <section v-if="tab === 'tracker'" class="panel">
+  <section v-if="view === 'tracker'" class="panel">
     <Tracker />
   </section>
 
-  <Placements v-if="tab === 'placements'" />
+  <Placements v-if="view === 'placements'" />
 
-  <Experience v-if="tab === 'experience'" />
-
-  <section v-if="tab === 'arp'" class="panel">
+  <section v-if="view === 'arp'" class="panel">
     <Arp :width="600" :height="800" :pixelRatio="1" />
   </section>
 </template>
