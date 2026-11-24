@@ -2,17 +2,17 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import Arp from './components/Arp.vue'
 import Tracker from './components/Tracker.vue'
-import Calibrate from './components/Calibrate.vue'
+import Music from './components/Music.vue'
 import Placements from './components/Placements.vue'
 import Experience from './components/Experience.vue'
 import Tabs from './components/Tabs.vue'
 
 const TABS = [
-  { id: 'music', label: 'Music lines' },
-  { id: 'camera', label: 'Camera' },
+  { id: 'music', label: 'Music' },
+  { id: 'tracker', label: 'Camera' },
   { id: 'placements', label: 'Placements' },
+  { id: 'arp', label: 'Arp' },
   { id: 'experience', label: 'Experience' },
-  { id: 'arp', label: 'Arp' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
@@ -64,10 +64,10 @@ onUnmounted(() => {
   <!-- Only the shown tab is mounted. Leaving a tab unmounts it, which releases
        its camera, model, audio and draw loop: no tab sees another's data. -->
   <section v-if="tab === 'music'" class="panel">
-    <Calibrate />
+    <Music />
   </section>
 
-  <section v-if="tab === 'camera'" class="panel">
+  <section v-if="tab === 'tracker'" class="panel">
     <Tracker />
   </section>
 
