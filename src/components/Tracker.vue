@@ -7,6 +7,7 @@ import {
 import { Pane } from 'tweakpane'
 import { onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 import { POSE_COLORS, addCameraButton, useCamera } from '../lib/camera'
+import { cameraPlacement } from '../lib/camera-placement'
 import { persisted } from '../lib/persisted'
 
 const config = persisted('warp:camera-view', {
@@ -57,6 +58,7 @@ function draw(landmarksPerPose: NormalizedLandmark[][]) {
 function createPane(container: HTMLElement): Pane {
   const p = new Pane({ container, title: 'Camera' })
   addCameraButton(p, tracking)
+  p.addBinding(cameraPlacement, 'mirrored')
   p.addBinding(config, 'cameraOpacity', {
     label: 'camera opacity',
     min: 0,
@@ -88,7 +90,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="stage">
+  <div class="stage" :class="{ mirrored: cameraPlacement.mirrored }">
     <video
       ref="video"
       autoplay
@@ -109,6 +111,10 @@ onUnmounted(() => {
   position: relative;
   display: inline-block;
   max-width: 100%;
+}
+
+.stage.mirrored {
+  transform: scaleX(-1);
 }
 
 video {
