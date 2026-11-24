@@ -5,19 +5,18 @@ import {
   type NormalizedLandmark
 } from '@mediapipe/tasks-vision'
 import { Pane } from 'tweakpane'
-import { onMounted, onUnmounted, reactive, ref, watch, watchEffect } from 'vue'
-import { addCameraButton, camera, poses, stream } from '../lib/camera'
-import { store } from '../lib/store.js'
+import { onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
+import { POSE_COLORS, addCameraButton, useCamera } from '../lib/camera'
+import { persisted } from '../lib/persisted'
 
-// Pose 0 is the one whose nose feeds the store.
-const POSE_COLORS = ['#ff4d8d', '#2ee6d6', '#ffd24d', '#9b8cff']
-
-const config = reactive({
+const config = persisted('warp:camera-view', {
   skeletons: true,
-  minVisibility: 0.9,
   cameraOpacity: 1,
   skeletonOpacity: 1
 })
+
+const tracking = useCamera()
+const { camera, stream, poses } = tracking
 
 const video = ref<HTMLVideoElement | null>(null)
 const overlay = ref<HTMLCanvasElement | null>(null)
@@ -33,13 +32,7 @@ watchEffect(
   { flush: 'post' }
 )
 
-watch(poses, latest => {
-  const nose = latest[0]?.[0]
-  if (nose && nose.visibility > config.minVisibility) {
-    store.setCoords(nose.x, nose.y)
-  }
-  draw(latest)
-})
+watch(poses, draw)
 
 function draw(landmarksPerPose: NormalizedLandmark[][]) {
   const canvas = overlay.value
@@ -61,13 +54,9 @@ function draw(landmarksPerPose: NormalizedLandmark[][]) {
   })
 }
 
-function reset() {
-  store.setCoords(0.5, 0.125)
-}
-
 function createPane(container: HTMLElement): Pane {
   const p = new Pane({ container, title: 'Camera' })
-  addCameraButton(p)
+  addCameraButton(p, tracking)
   p.addBinding(config, 'cameraOpacity', {
     label: 'camera opacity',
     min: 0,
@@ -83,13 +72,6 @@ function createPane(container: HTMLElement): Pane {
   })
   p.addBinding(camera, 'fps', { label: 'detection fps', min: 1, max: 60, step: 1 })
   p.addBinding(camera, 'numPoses', { label: 'poses', min: 1, max: 4, step: 1 })
-  p.addBinding(config, 'minVisibility', {
-    label: 'nose visibility',
-    min: 0,
-    max: 1,
-    step: 0.05
-  })
-  p.addButton({ title: 'reset position' }).on('click', reset)
   return p
 }
 

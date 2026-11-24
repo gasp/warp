@@ -77,6 +77,8 @@ function start() {
     .then(response => response.arrayBuffer())
     .then(binAudio => ctx.decodeAudioData(binAudio))
     .then(buffer => {
+      // the tab was left, or play restarted, while the sample was loading
+      if (audioContext !== ctx) return
       source.buffer = buffer
       source.loop = false
       source.onended = () => {

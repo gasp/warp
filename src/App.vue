@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
-import Canvas from './components/Canvas.vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import Arp from './components/Arp.vue'
 import Tracker from './components/Tracker.vue'
 import Calibrate from './components/Calibrate.vue'
 import Placements from './components/Placements.vue'
+import Experience from './components/Experience.vue'
 import Tabs from './components/Tabs.vue'
 
 const TABS = [
   { id: 'music', label: 'Music lines' },
   { id: 'camera', label: 'Camera' },
   { id: 'placements', label: 'Placements' },
-  { id: 'final', label: 'Final' }
+  { id: 'experience', label: 'Experience' },
+  { id: 'arp', label: 'Arp' }
 ] as const
 type TabId = (typeof TABS)[number]['id']
 
@@ -18,15 +20,10 @@ const tabFromHash = (): TabId =>
   TABS.find(t => location.hash === `#${t.id}`)?.id ?? TABS[0].id
 
 const tab = ref<TabId>(tabFromHash())
-// Tabs stay mounted once visited: the webcam must keep feeding the store from
-// any tab.
-const visited = reactive(new Set<TabId>([tab.value]))
 const fullscreen = ref(document.fullscreenElement !== null)
-const debug = ref(false)
 
 function onHashChange() {
   tab.value = tabFromHash()
-  visited.add(tab.value)
 }
 
 function onFullscreenChange() {
@@ -64,40 +61,27 @@ onUnmounted(() => {
     <button type="button" @click="toggleFullscreen">fullscreen (f)</button>
   </Tabs>
 
-  <section v-if="visited.has('music')" v-show="tab === 'music'" class="panel">
+  <!-- Only the shown tab is mounted. Leaving a tab unmounts it, which releases
+       its camera, model, audio and draw loop: no tab sees another's data. -->
+  <section v-if="tab === 'music'" class="panel">
     <Calibrate />
   </section>
 
-  <section v-if="visited.has('camera')" v-show="tab === 'camera'" class="panel">
+  <section v-if="tab === 'camera'" class="panel">
     <Tracker />
   </section>
 
-  <!-- Mounted only while shown: its arrow and digit shortcuts listen on window. -->
   <Placements v-if="tab === 'placements'" />
 
-  <section v-if="visited.has('final')" v-show="tab === 'final'" class="panel">
-    <Canvas :width="600" :height="800" :pixelRatio="1" :debug="debug" />
-    <label><input type="checkbox" v-model="debug" /> debug</label>
+  <Experience v-if="tab === 'experience'" />
+
+  <section v-if="tab === 'arp'" class="panel">
+    <Arp :width="600" :height="800" :pixelRatio="1" />
   </section>
 </template>
 
 <style scoped>
 .panel {
   padding-top: 48px;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
 }
 </style>

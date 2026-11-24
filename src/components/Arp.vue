@@ -1,43 +1,61 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { store } from '../lib/store.js'
-import { lerp } from '../lib/interpolations'
-import { getIntersection, getPointInVector, getDistance } from '../lib/geometry'
+import { Pane } from 'tweakpane'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import {
+  getIntersection,
+  getPointInVector,
+  getDistance,
+  type Point
+} from '../lib/geometry'
 import { drawLines } from '../lib/lines'
 
 type Props = {
-  debug: boolean,
   width: number,
   height: number,
   pixelRatio: number
 }
 
-const SMOOTHNESS = 1 / 20
 const RADIUS = 50
+// Where the circle starts, and goes back to on reset, as a fraction of the canvas.
+const HOME = { x: 0.5, y: 0.125 }
 
-const { debug, width, height, pixelRatio: ratio } = defineProps<Props>()
+const { width, height, pixelRatio: ratio } = defineProps<Props>()
+
+const config = { debug: false }
 
 const canvas = ref<HTMLCanvasElement | null>(null)
-const context = ref<CanvasRenderingContext2D | null>(null)
-const drawing = ref(false)
+const paneContainer = ref<HTMLElement | null>(null)
+const cursor = ref('default')
+
+let context: CanvasRenderingContext2D | null = null
+let pane: Pane | null = null
+let frame = 0
+/** Pointer to circle centre while the circle is held. */
+let grab: Point | null = null
 
 // unit: pixels
-let x = 200
-let y = 150
+let x = width * HOME.x
+let y = height * HOME.y
+
+const clamp = (n: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, n))
+
+// Nothing moves on its own: draw once per change, at most once per frame.
+function requestDraw() {
+  if (frame) return
+  frame = requestAnimationFrame(() => {
+    frame = 0
+    draw()
+  })
+}
 
 const draw = () => {
-  if (!context.value) return
-  const ctx = context.value
-  if (x === store.x && y === store.y) {
-    // TODO: there is some optim to do here, later mabye
-    console.log('idle')
-    setTimeout(draw, 1000)
-    return
-  }
+  if (!context) return
+  const ctx = context
 
   ctx.clearRect(0, 0, width * ratio, height * ratio)
 
-  if (debug) {
+  if (config.debug) {
     const grid = new Path2D()
     for (let i = 0; i < width; i += 100) {
       grid.moveTo(i, 0)
@@ -50,10 +68,6 @@ const draw = () => {
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)'
     ctx.stroke(grid)
   }
-
-  x = lerp(x, store.x * width, SMOOTHNESS)
-  y = lerp(y, store.y * height, SMOOTHNESS)
-  // console.log(store.x, x)
 
   const circle = new Path2D()
   circle.arc(~~x, ~~y, RADIUS, 0, 2 * Math.PI)
@@ -179,7 +193,7 @@ const draw = () => {
   ])
   ctx.stroke(lines)
 
-  if (debug) {
+  if (config.debug) {
     ctx.fillStyle = 'blue'
     ctx.font = '10px sans-serif'
     ctx.fillText('attachedLeftBorder', attachedLeftBorder.x, attachedLeftBorder.y + 10)
@@ -277,30 +291,104 @@ const draw = () => {
     ctx.fillText('Q', pointQ.x + 10, pointQ.y - 5)
 
   }
-
-  if (drawing.value) requestAnimationFrame(draw)
 }
 
+/** In drawing units, which are the canvas's own pixels. */
+function toCanvas(event: PointerEvent): Point {
+  const el = canvas.value!
+  const rect = el.getBoundingClientRect()
+  return {
+    x: ((event.clientX - rect.left) * el.width) / rect.width,
+    y: ((event.clientY - rect.top) * el.height) / rect.height
+  }
+}
+
+const onCircle = (p: Point) => getDistance(p, { x, y }) <= RADIUS
+
+function onPointerDown(event: PointerEvent) {
+  if (!event.isPrimary || event.button !== 0) return
+  const p = toCanvas(event)
+  if (!onCircle(p)) return
+  grab = { x: x - p.x, y: y - p.y }
+  canvas.value!.setPointerCapture(event.pointerId)
+  cursor.value = 'grabbing'
+}
+
+function onPointerMove(event: PointerEvent) {
+  if (!event.isPrimary) return
+  const p = toCanvas(event)
+  if (!grab) {
+    cursor.value = onCircle(p) ? 'grab' : 'default'
+    return
+  }
+  // Kept on the canvas, where it can always be grabbed back.
+  x = clamp(p.x + grab.x, 0, width)
+  y = clamp(p.y + grab.y, 0, height)
+  requestDraw()
+}
+
+function onPointerUp(event: PointerEvent) {
+  if (!event.isPrimary) return
+  grab = null
+  cursor.value = onCircle(toCanvas(event)) ? 'grab' : 'default'
+}
+
+function reset() {
+  x = width * HOME.x
+  y = height * HOME.y
+  requestDraw()
+}
+
+function createPane(container: HTMLElement): Pane {
+  const p = new Pane({ container, title: 'Arp' })
+  p.addBinding(config, 'debug')
+  p.addButton({ title: 'reset position' }).on('click', reset)
+  p.on('change', requestDraw)
+  return p
+}
+
+// Resizing the canvas clears it.
+watch(() => [width, height, ratio], requestDraw, { flush: 'post' })
+
 onMounted(() => {
-  context.value = canvas.value!.getContext('2d')
-  drawing.value = true
+  context = canvas.value!.getContext('2d')
+  pane = createPane(paneContainer.value!)
   draw()
 })
 
-
 onUnmounted(() => {
-  // kill raf
-  drawing.value = false
-  context.value = null
+  cancelAnimationFrame(frame)
+  frame = 0
+  context = null
+  pane?.dispose()
+  pane = null
 })
 </script>
 
 <template>
-  <canvas :width='width * ratio' :height='height * ratio' ref="canvas"></canvas>
+  <canvas
+    ref="canvas"
+    :width="width * ratio"
+    :height="height * ratio"
+    :style="{ cursor }"
+    @pointerdown="onPointerDown"
+    @pointermove="onPointerMove"
+    @pointerup="onPointerUp"
+    @pointercancel="onPointerUp"
+  />
+  <div ref="paneContainer" class="pane" />
 </template>
 
 <style scoped>
 canvas {
   background-color: #888;
+  touch-action: none;
+}
+
+.pane {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 300px;
 }
 </style>

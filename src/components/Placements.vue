@@ -10,7 +10,7 @@ import {
   watch,
   watchEffect
 } from 'vue'
-import { addCameraButton, camera, poses, stream } from '../lib/camera'
+import { addCameraButton, devices, useCamera } from '../lib/camera'
 import { cameraPlacement, tapeCorners } from '../lib/camera-placement'
 import type { Point } from '../lib/geometry'
 import {
@@ -28,6 +28,7 @@ import {
   viewportToWall,
   wallToViewport
 } from '../lib/mapping'
+import { persisted } from '../lib/persisted'
 import { RATIOS, fitCorners, projection, useViewport } from '../lib/projection'
 import Projection from './Projection.vue'
 
@@ -45,8 +46,14 @@ const ARROWS: Record<string, Point> = {
 type Mode = 'beamer' | 'camera'
 
 const viewport = useViewport()
+const tracking = useCamera()
+const { stream, poses } = tracking
 const ui = reactive({ mode: 'beamer' as Mode, corner: 0 })
-const cameraView = reactive({ video: true, opacity: 0.5, skeleton: true })
+const cameraView = persisted('warp:placements-view', {
+  video: true,
+  opacity: 0.5,
+  skeleton: true
+})
 const paneContainer = ref<HTMLElement | null>(null)
 const feed = ref<HTMLVideoElement | null>(null)
 let pane: Pane | null = null
@@ -209,7 +216,7 @@ function onKeydown(event: KeyboardEvent) {
 
 const deviceOptions = () => [
   { text: 'default', value: '' },
-  ...camera.devices.map(d => ({ text: d.label, value: d.deviceId }))
+  ...devices.list.map(d => ({ text: d.label, value: d.deviceId }))
 ]
 
 function createPane(container: HTMLElement): Pane {
@@ -231,7 +238,7 @@ function createPane(container: HTMLElement): Pane {
 
   // Cross-multiplication: whichever side was measured gives the other one.
   const sizeFolder = beamer.addFolder({ title: 'wall size (cm)' })
-  const size = { width: 160, height: 90 }
+  const size = persisted('warp:wall-size', { width: 160, height: 90 })
   let syncing = false
   const sync = (from: 'width' | 'height') => {
     if (syncing) return
@@ -249,13 +256,13 @@ function createPane(container: HTMLElement): Pane {
   sync('width')
 
   const cameraFolder = p.addFolder({ title: 'camera' })
-  addCameraButton(cameraFolder)
-  const device = cameraFolder.addBinding(camera, 'deviceId', {
+  addCameraButton(cameraFolder, tracking)
+  const device = cameraFolder.addBinding(devices, 'selected', {
     label: 'device',
     options: deviceOptions()
   }) as ListInputBindingApi<string>
   watch(
-    () => camera.devices,
+    () => devices.list,
     () => (device.options = deviceOptions())
   )
   cameraFolder.addBinding(cameraPlacement, 'mirrored')
